@@ -7,9 +7,6 @@ Code and reusable results for **When Is a Forecasting Winner Deployment-Actionab
 
 This repository asks a deployment-facing model-selection question: when a forecasting metric selects a winner, is that winner also supported as top-1 advice after the same fixed forecast-to-decision interface and friction model are applied?
 
-<p align="center">
-  <img src="results/figures/fig1_fixed_interface_inversion.png" alt="Fixed-interface evaluation can change model selection" width="860">
-</p>
 
 ## What This Audits
 
