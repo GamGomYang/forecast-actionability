@@ -1,112 +1,54 @@
-# Execution-Aware Portfolio Reinforcement Learning
-## Target, Execution, and Accounting as Separate Objects
+## Forecasting Actionability Report Card
 
-This repository studies portfolio control with a simple but strict distinction:
+**Paper:** arXiv:2606.24996  
+https://arxiv.org/abs/2606.24996
 
-- `w_tgt`: the portfolio the controller proposes
-- `w_exec`: the portfolio that is actually realized
+Code and reusable results for **When Is a Forecasting Winner Deployment-Actionable? A Fail-Closed Report Card**.
 
-The execution layer maps target weights to realized holdings through a partial-adjustment rule,
+This repository asks a deployment-facing model-selection question: when a forecasting metric selects a winner, is that winner also supported as top-1 advice after the same fixed forecast-to-decision interface and friction model are applied?
 
-```text
-w_exec,t = (1 - eta_t) w_exec,t-1 + eta_t w_tgt,t,
-```
 
-and the paper evaluates performance on the executed path rather than on the untraded target path.
+## What This Audits
 
-## Why This Matters
+Forecasting benchmarks usually rank candidates by predictive quality. Deployment-facing use can add a fixed interface before utility is measured:
 
-Many portfolio-RL pipelines implicitly treat
+- threshold alerts
+- hysteresis rules
+- budgeted top-k actions
+- residual-warning screens
+- replenishment rules
 
-```text
-w_tgt = w_exec
-```
-
-as if it were an identity. This repository treats that as a modeling choice instead.
-
-The paper asks a narrower question:
-
-- if the learned target path is held fixed,
-- and only the execution rule changes,
-- does realized net performance change once trading frictions are charged on what is actually traded?
-
-## Where To Look First
-
-- [`prl-dow30/`](prl-dow30): active source tree for training, evaluation, and experiment scripts
-- [`frozen_protocol/`](frozen_protocol): locked protocol snapshots and split definitions used by the paper
-- [`repro/`](repro): manifests, rebuild artifacts, smoke checks, and paper-facing reproduction material
-
-## Current Paper Scope
-
-The paper is an execution-and-accounting identification study built around a fixed 27-name large-cap U.S. equity snapshot.
-
-- canonical splits: `2010--2021`, `2022--2023`, `2024--2025`
-- locked execution grid: `eta in {1.0, 0.5, 0.2, 0.1, 0.082, 0.05, 0.02}`
-- validation-selected operating point on the canonical split: `eta = 0.5`
-
-Main empirical takeaway on the canonical split:
-
-- executed turnover falls from `0.02200` to `0.01095`
-- paired median net Sharpe improves by `+0.0105` at `kappa = 5e-4`
-- paired median net Sharpe improves by `+0.0213` at `kappa = 1e-3`
-- the `kappa = 0` row remains nearly flat
-
-The manuscript now also includes:
-
-- an `eta`-aligned retraining check
-- a second 36-name large-cap replication benchmark
-- a cost-calibrated linear-convex information-parity comparator
-
-## Representative Frontier
-
-<p align="center">
-  <img src="paper/fig_frontier.png" alt="Validation frontier for execution rate eta under multiple transaction-cost levels" width="760">
-</p>
-
-The main frontier should be read as follows:
-
-- when `kappa = 0`, the selected interior point is nearly flat relative to immediate execution
-- when `kappa > 0`, an interior execution rate improves net Sharpe by reducing realized turnover
-- the paper's main claim is therefore about implementation under frictions, not about new alpha
-
-## Quickstart
-
-Install:
-
-```bash
-cd prl-dow30
-pip install -r requirements.txt
-```
-
-Train:
-
-```bash
-python3 -m scripts.run_train --config configs/default.yaml --model-type prl --seed 0
-```
-
-Evaluate:
-
-```bash
-python3 -m scripts.run_eval --config configs/default.yaml --model-type prl --seed 0
-```
-
-Run experiment suites:
-
-```bash
-python3 -m scripts.run_matrix --config configs/main_experiment.yaml
-python3 -m scripts.run_matrix --config configs/eta_sweep.yaml
-python3 -m scripts.run_matrix --config configs/rule_vol.yaml
-```
+The report card keeps forecast-side metrics intact and adds a fail-closed check for whether the selected winner remains deployment-actionable under the specified interface. Cases that are not sufficiently supported should stay diagnostic rather than being promoted as certified reversals.
 
 ## Repository Layout
 
-```text
-paper/            final manuscript package
-prl-dow30/        code, configs, scripts, experiment outputs
-frozen_protocol/  locked paper protocol snapshots
-repro/            manifests, rebuilds, smoke checks, and paper reproduction artifacts
-docs/             project notes and specifications
-defence/          defense material
+- `results/tables/`: reusable CSV outputs from the actionability checks.
+- `results/figures/`: retained PNG figures for inspecting the main result patterns.
+- `scripts/forecast_eval/`: experiment and event-micro support scripts.
+- `scripts/reporting/`: lightweight report-card summary utilities.
+
+## Result Snapshot
+
+| Task | Interface | Friction | Forecast-side winner | Deployed-side winner | Agreement | Suboptimal cases |
+| --- | --- | ---: | --- | --- | ---: | ---: |
+| Synthetic | zero-friction anchor | 0.00 | Naive last | Naive last | 1.00 | 0/20 |
+| Event warning | threshold tau=0.55 | 0.50 | Reactive sharp | Calibrated | 0.31 | 69/100 |
+| Event warning | threshold tau=0.55 | 1.00 | Reactive sharp | Smoother | 0.01 | 99/100 |
+| Budgeted traffic alert | budget k=249 | 0.50 | Reactive short | Smoother | 0.00 | 100/100 |
+| Budgeted traffic alert | budget k=249 | 1.00 | Reactive short | Smoother | 0.00 | 100/100 |
+| Inventory replenishment | replenishment | 1.00 | Small MLP | MA(7) | 0.01 | 99/100 |
+
+Event warning and Traffic-Hourly provide the main prediction-to-decision checks. Inventory is retained as operational corroboration.
+
+## Useful Commands
+
+```powershell
+python scripts\reporting\compute_share_intervals.py
+python -m py_compile (Get-ChildItem -Recurse -Filter *.py).FullName
 ```
 
+The first command writes `results/tables/share_interval_audit.csv`. The second command checks that retained Python files parse.
 
+## Scope
+
+This is a reporting diagnostic, not a new forecasting benchmark suite, forecaster, or universal deployed metric. Deployed utility is specific to the chosen interface, simulator, and friction model.
